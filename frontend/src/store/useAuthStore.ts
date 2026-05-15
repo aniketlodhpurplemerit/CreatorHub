@@ -7,6 +7,7 @@ interface User {
   email: string;
   role: 'user' | 'creator' | 'admin';
   avatar?: string;
+  bio?: string;
   countryOfResidence?: string;
   token: string;
 }

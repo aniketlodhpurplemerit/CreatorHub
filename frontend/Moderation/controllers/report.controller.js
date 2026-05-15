@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { isValidObjectId } = require('../../../backend/utils/objectId');
 const Report = require('../models/ReportModel');
 const Post = require('../../../backend/models/Post');
 const Creator = require('../../../backend/models/Creator');
@@ -52,7 +52,7 @@ async function createReport(req, res) {
       return res.status(400).json({ message: 'Invalid reason.' });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(targetId)) {
+    if (!isValidObjectId(targetId)) {
       return res.status(400).json({ message: 'Invalid targetId.' });
     }
 

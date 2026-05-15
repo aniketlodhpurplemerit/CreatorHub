@@ -602,7 +602,7 @@ exports.getSettings = async (req, res) => {
   try {
     let settings = await AppSetting.findOne();
     if (!settings) {
-      settings = new AppSetting();
+      settings = AppSetting.buildDefault();
       await settings.save();
     }
 
@@ -848,7 +848,7 @@ exports.getPlatformSettings = async (req, res) => {
     let needsSave = false;
 
     if (!settings) {
-      settings = new AppSetting();
+      settings = AppSetting.buildDefault();
       needsSave = true;
     }
 
@@ -918,7 +918,7 @@ exports.updatePlatformToggle = async (req, res) => {
   try {
     const { featureId, isEnabled } = req.body;
     let settings = await AppSetting.findOne();
-    if (!settings) settings = new AppSetting();
+    if (!settings) settings = AppSetting.buildDefault();
 
     // Map frontend feature IDs to schema properties
     const map = {
@@ -950,7 +950,7 @@ exports.updateSubscriptionPlan = async (req, res) => {
     const updates = req.body;
     
     let settings = await AppSetting.findOne();
-    if (!settings) settings = new AppSetting();
+    if (!settings) settings = AppSetting.buildDefault();
     
     const planIndex = settings.subscriptionPlans.findIndex(p => p.id === id);
     if (planIndex !== -1) {

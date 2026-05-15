@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { isValidObjectId } = require('../../../utils/objectId');
 const { z } = require('zod');
 const Appeal = require('../../../models/Appeal');
 const Ban = require('../../../models/Ban');
@@ -104,7 +104,7 @@ const createAppeal = async ({ userId, payload }) => {
   } else {
     appealType = 'post_lock';
 
-    if (!validated.postId || !mongoose.Types.ObjectId.isValid(validated.postId)) {
+    if (!validated.postId || !isValidObjectId(validated.postId)) {
       const error = new Error('A valid locked post selection is required to submit this appeal');
       error.statusCode = 400;
       throw error;

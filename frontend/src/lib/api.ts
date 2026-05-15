@@ -44,8 +44,13 @@ api.interceptors.response.use(
       const requestUrl = error.config?.url || '';
       const isAuthRequest =
         requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+      const isBackgroundNotifications =
+        requestUrl.includes('/moderation/notifications') ||
+        requestUrl.includes('/creator/notifications') ||
+        requestUrl.includes('/user/notifications') ||
+        requestUrl.includes('/moderation/ban/status');
 
-      if (hasToken && !isAuthRequest) {
+      if (hasToken && !isAuthRequest && !isBackgroundNotifications) {
         const now = Date.now();
         // Reset counter if last failure was too long ago
         if (now - lastAuthFailureTime > AUTH_FAILURE_WINDOW_MS) {

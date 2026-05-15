@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from './auth';
 import { connectWalletDB } from '../utils/db';
-import WalletModel from '../models/WalletModel';
+import { debitWallet } from '../lib/walletPg';
 import { validateDeductAmount } from '../utils/walletHelpers';
 
 /**
@@ -27,28 +27,9 @@ export async function deductFunds(req) {
 
     await connectWalletDB();
 
-    const transaction = {
-      amount,
-      type: 'debit',
-      status: 'success',
-      referenceId: contentId,
-      createdAt: new Date()
-    };
+    const updated = await debitWallet(userId, amount, contentId);
 
-    const updatedWallet = await WalletModel.findOneAndUpdate(
-      {
-        userId,
-        balance: { $gte: amount }
-      },
-      {
-        $inc: { balance: -amount },
-        $push: { transactions: transaction },
-        $set: { updatedAt: new Date() }
-      },
-      { new: true }
-    ).lean();
-
-    if (!updatedWallet) {
+    if (!updated) {
       return NextResponse.json(
         { message: 'Insufficient wallet balance. Please add funds.' },
         { status: 400 }
@@ -59,8 +40,8 @@ export async function deductFunds(req) {
       {
         success: true,
         unlocked: true,
-        balance: updatedWallet.balance,
-        transaction
+        balance: updated.balance,
+        transaction: updated.transaction
       },
       { status: 200 }
     );

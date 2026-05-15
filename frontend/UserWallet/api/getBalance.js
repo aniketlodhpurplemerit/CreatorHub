@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from './auth';
 import { connectWalletDB } from '../utils/db';
-import WalletModel from '../models/WalletModel';
+import { getWalletBalancePayload } from '../lib/walletPg';
 import { sortTransactionsByLatest } from '../utils/walletHelpers';
 
 /**
@@ -18,14 +18,7 @@ export async function getBalance(req) {
 
     await connectWalletDB();
 
-    const wallet = await WalletModel.findOne({ userId }).lean();
-
-    if (!wallet) {
-      return NextResponse.json(
-        { balance: 0, transactions: [] },
-        { status: 200 }
-      );
-    }
+    const wallet = await getWalletBalancePayload(userId);
 
     return NextResponse.json(
       {

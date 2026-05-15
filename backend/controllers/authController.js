@@ -16,6 +16,15 @@ const {
 const { checkFlagged } = require('../../frontend/Moderation/services/flaggedIdentity.service');
 const { logAuthEvent } = require('../utils/authLogger');
 
+/** Prefer creator profile avatar/bio when a creators row exists (keeps UI aligned with creator dashboard). */
+async function mergeCreatorPresentation(user) {
+  if (!user) return { avatar: '', bio: '' };
+  const c = await Creator.findOne({ userId: String(user._id) }).lean();
+  const avatar = c?.avatar ? c.avatar : user.avatar || '';
+  const bio = c && c.bio != null && String(c.bio).trim() !== '' ? c.bio : user.bio || '';
+  return { avatar, bio };
+}
+
 const DEFAULT_TERMS_OF_SERVICE =
   '## Platform Usage Rules\n1. Users must be 18+...\n2. All content must comply with global standards...';
 const DEFAULT_PRIVACY_POLICY =
@@ -271,12 +280,13 @@ const loginUser = async (req, res) => {
     if (user && (await user.matchPassword(password))) {
       const token = await issueSessionToken(user, req);
       logAuthEvent('auth.login.success', req, { userId: String(user._id), role: user.role });
+      const { avatar } = await mergeCreatorPresentation(user);
       res.json({
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        avatar: user.avatar,
+        avatar,
         countryOfResidence: user.countryOfResidence,
         token,
       });
@@ -334,12 +344,14 @@ const loginUser = async (req, res) => {
     const token = await issueSessionToken(linkedUser, req);
     logAuthEvent('auth.login.success', req, { userId: String(linkedUser._id), role: linkedUser.role });
 
+    const { avatar } = await mergeCreatorPresentation(linkedUser);
+
     return res.json({
       _id: linkedUser._id,
       name: linkedUser.name,
       email: linkedUser.email,
       role: linkedUser.role,
-      avatar: linkedUser.avatar,
+      avatar,
       countryOfResidence: linkedUser.countryOfResidence,
       token,
     });
@@ -351,20 +363,22 @@ const loginUser = async (req, res) => {
 
 // @desc    Get user profile (example protected route)
 const getUserProfile = async (req, res) => {
-    const user = await User.findById(req.user._id);
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
 
-    if (user) {
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            avatar: user.avatar,
-          countryOfResidence: user.countryOfResidence,
-        });
-    } else {
-        res.status(404).json({ message: 'User not found' });
-    }
+  const { avatar, bio } = await mergeCreatorPresentation(user);
+
+  res.json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar,
+    bio,
+    countryOfResidence: user.countryOfResidence,
+  });
 };
 
 // @desc    Get deterministic conversation encryption key
@@ -582,6 +596,8 @@ const verifyOtp = async (req, res) => {
 
     const token = await issueSessionToken(user, req);
 
+    const { avatar, bio } = await mergeCreatorPresentation(user);
+
     res.json({
       success: true,
       message: 'Email verified successfully',
@@ -591,7 +607,8 @@ const verifyOtp = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        avatar: user.avatar,
+        avatar,
+        bio,
         countryOfResidence: user.countryOfResidence,
         token,
       },
@@ -675,6 +692,8 @@ const setRole = async (req, res) => {
 
     const token = await issueSessionToken(user, req);
 
+    const { avatar, bio } = await mergeCreatorPresentation(user);
+
     res.json({
       success: true,
       user: {
@@ -682,7 +701,8 @@ const setRole = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        avatar: user.avatar,
+        avatar,
+        bio,
         countryOfResidence: user.countryOfResidence,
         token,
       },

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { isValidObjectId } = require('../../../utils/objectId');
 const { z } = require('zod');
 const Report = require('../../../models/Report');
 const Post = require('../../../models/Post');
@@ -17,7 +17,7 @@ const reportReasonEnum = [
 ];
 
 const createReportSchema = z.object({
-  postId: z.string().trim().refine((value) => mongoose.Types.ObjectId.isValid(value), {
+  postId: z.string().trim().refine((value) => isValidObjectId(value), {
     message: 'Invalid postId'
   }),
   reason: z.enum(reportReasonEnum),
@@ -97,7 +97,7 @@ const createReport = async ({ userId, payload }) => {
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(creator.userId)) {
+  if (!isValidObjectId(creator.userId)) {
     const error = new Error('Post creator account is invalid');
     error.statusCode = 400;
     throw error;
@@ -110,7 +110,7 @@ const createReport = async ({ userId, payload }) => {
     throw error;
   }
 
-  const creatorUserId = new mongoose.Types.ObjectId(creator.userId);
+  const creatorUserId = String(creator.userId);
 
   try {
     const report = await Report.create({
@@ -185,8 +185,7 @@ const getAdminReports = async ({ query }) => {
     Report.countDocuments(filter)
   ]);
 
-  const postIds = [...new Set(items.map((item) => String(item.postId?._id || item.postId)).filter(Boolean))]
-    .map((id) => new mongoose.Types.ObjectId(id));
+  const postIds = [...new Set(items.map((item) => String(item.postId?._id || item.postId)).filter(Boolean))];
 
   const counts = postIds.length
     ? await Report.aggregate([
@@ -216,7 +215,7 @@ const getAdminReports = async ({ query }) => {
 };
 
 const getAdminReportById = async (reportId) => {
-  if (!mongoose.Types.ObjectId.isValid(reportId)) {
+  if (!isValidObjectId(reportId)) {
     const error = new Error('Invalid report id');
     error.statusCode = 400;
     throw error;
@@ -240,7 +239,7 @@ const getAdminReportById = async (reportId) => {
 };
 
 const takeAdminAction = async ({ reportId, adminUserId, payload }) => {
-  if (!mongoose.Types.ObjectId.isValid(reportId)) {
+  if (!isValidObjectId(reportId)) {
     const error = new Error('Invalid report id');
     error.statusCode = 400;
     throw error;

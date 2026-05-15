@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Creator = require('../models/Creator');
 const { getRuntimeSecuritySettings } = require('../utils/securitySettings');
 const {
   getJwtSecret,
@@ -68,9 +69,19 @@ const protect = async (req, res, next) => {
   };
 
   const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.startsWith('Bearer ')
+  let token = authHeader && authHeader.startsWith('Bearer ')
     ? authHeader.split(' ')[1]?.trim()
     : '';
+
+  // EventSource cannot send Authorization; moderation stream passes token in query.
+  if (
+    !token &&
+    req.method === 'GET' &&
+    typeof req.query?.token === 'string' &&
+    String(req.originalUrl || '').includes('/moderation/notifications/stream')
+  ) {
+    token = req.query.token.trim();
+  }
 
   if (!token) {
     logAuthEvent('auth.denied', req, { reason: 'missing_bearer_token' }, 'warn');
@@ -96,7 +107,12 @@ const protect = async (req, res, next) => {
       ? 'Not authorized, token expired'
       : 'Not authorized, invalid token';
 
-    logAuthEvent('auth.denied', req, { reason: error.name || 'verify_failed' }, 'warn');
+    logAuthEvent(
+      'auth.denied',
+      req,
+      { reason: error.name || 'verify_failed', detail: error.message },
+      'warn'
+    );
     return res.status(401).json({ message });
   }
 };
@@ -115,4 +131,26 @@ const authorize = (roles = []) => {
   };
 };
 
-module.exports = { protect, authorize };
+/**
+ * Creator API: allow `role === 'creator'` or any logged-in user who already has a creators row
+ * (fixes 403 when DB role was not updated after creator onboarding / migration drift).
+ */
+const authorizeCreatorOrProfile = () => async (req, res, next) => {
+  if (req.user?.role === 'creator') {
+    return next();
+  }
+  try {
+    const creator = await Creator.findOne({ userId: String(req.user._id) });
+    if (creator) {
+      return next();
+    }
+  } catch (error) {
+    return res.status(500).json({ message: 'Unable to verify creator access' });
+  }
+  return res.status(403).json({
+    message:
+      'This area is for creator accounts. Use “Become a creator” / switch to creator mode, or sign in with a creator account.',
+  });
+};
+
+module.exports = { protect, authorize, authorizeCreatorOrProfile };

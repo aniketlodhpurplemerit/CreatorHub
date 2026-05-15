@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
 import toast from 'react-hot-toast';
 import MembershipModal from './MembershipModal';
@@ -21,6 +22,7 @@ export default function ProfileActions({
   subscriptionPrice = 4.99,
   isInitialSubscribed = false 
 }: ProfileActionsProps) {
+  const router = useRouter();
   const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
   const [isMemModalOpen, setIsMemModalOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
@@ -42,6 +44,7 @@ export default function ProfileActions({
       toast.success('Message sent!');
       setIsMsgModalOpen(false);
       setMessageText('');
+      router.push('/user/messages');
     } catch (err: unknown) {
       const maybeAxiosError = err as {
         response?: {

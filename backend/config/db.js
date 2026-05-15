@@ -1,11 +1,14 @@
-const mongoose = require('mongoose');
+const { getPool } = require('../db/pool');
+const { ensureSchema } = require('../db/runSchema');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    const pool = getPool();
+    await pool.query('SELECT 1');
+    await ensureSchema();
+    console.log('PostgreSQL (Neon) connected and schema ensured');
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error(`Database connection error: ${error.message}`);
     process.exit(1);
   }
 };

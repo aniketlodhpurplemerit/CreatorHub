@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { isValidObjectId } = require('../utils/objectId');
 const multer = require('multer');
 const streamifier = require('streamifier');
 const cloudinary = require('../utils/cloudinary');
@@ -166,10 +166,14 @@ const updateCreatorProfile = async (req, res) => {
       if (req.body.banner) creator.banner = req.body.banner;
 
       await creator.save();
-      
-      // Also update name in User model if changed
-      if (name) {
-        await User.findByIdAndUpdate(req.user._id, { name });
+
+      // Keep users row in sync so login / GET /auth/profile show the same avatar & bio as the creator profile.
+      const userSync = {};
+      if (name) userSync.name = name;
+      if (creator.avatar) userSync.avatar = creator.avatar;
+      if (bio !== undefined) userSync.bio = bio;
+      if (Object.keys(userSync).length) {
+        await User.findByIdAndUpdate(req.user._id, { $set: userSync });
       }
 
       res.json(creator);
@@ -463,7 +467,7 @@ const updatePost = async (req, res) => {
 const getPostById = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!isValidObjectId(id)) {
         return res.status(400).json({ message: 'Invalid Post ID' });
     }
     const post = await Post.findById(id);
@@ -790,6 +794,20 @@ const getParticipantId = (participant) => {
   return participant.toString();
 };
 
+/** Map creator profile id → user id when clients pass creatorId as recipientId. */
+async function resolveRecipientUserId(recipientId) {
+  const id = String(recipientId || '').trim();
+  if (!id) return '';
+
+  const asUser = await User.findById(id);
+  if (asUser) return id;
+
+  const asCreator = await Creator.findById(id);
+  if (asCreator?.userId) return String(asCreator.userId);
+
+  return id;
+}
+
 const getMessages = async (req, res) => {
   try {
     await Message.updateMany(
@@ -836,14 +854,19 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ error: 'recipientId is required' });
     }
 
+    const resolvedRecipientId = await resolveRecipientUserId(recipientId);
+    if (!resolvedRecipientId) {
+      return res.status(400).json({ error: 'Invalid recipient' });
+    }
+
     if (!text && !encryptedText && !mediaUrl) {
       return res.status(400).json({ error: 'Message content is required' });
     }
 
     const existingBlock = await Block.findOne({
       $or: [
-        { blocker: req.user._id, blocked: recipientId },
-        { blocker: recipientId, blocked: req.user._id }
+        { blocker: req.user._id, blocked: resolvedRecipientId },
+        { blocker: resolvedRecipientId, blocked: req.user._id }
       ]
     });
 
@@ -851,11 +874,11 @@ const sendMessage = async (req, res) => {
       return res.status(403).json({ error: 'Cannot send message. User is blocked.' });
     }
 
-    const conversationId = [req.user._id.toString(), recipientId.toString()].sort().join('_');
+    const conversationId = [req.user._id.toString(), resolvedRecipientId].sort().join('_');
     const message = await Message.create({
       conversationId,
       sender: req.user._id,
-      recipient: recipientId,
+      recipient: resolvedRecipientId,
       text: text || '',
       mediaUrl,
       mediaType,
@@ -866,15 +889,25 @@ const sendMessage = async (req, res) => {
       ...(replyTo ? { replyTo } : {})
     });
 
-    await Notification.create({
-      recipient: recipientId,
-      sender: req.user._id,
-      type: 'message',
-      content: `You received a new message from ${req.user.name}`,
-      relatedId: message._id
-    });
+    try {
+      await Notification.create({
+        recipient: resolvedRecipientId,
+        sender: req.user._id,
+        type: 'message',
+        content: `You received a new message from ${req.user.name}`,
+        relatedId: message._id
+      });
+    } catch (notifyErr) {
+      console.warn('Message notification failed:', notifyErr?.message || notifyErr);
+    }
 
-    res.status(201).json(message);
+    const populated = { ...message.toObject(), _id: message._id };
+    const senderDoc = await User.findById(String(req.user._id)).select('name email avatar').lean().exec();
+    const recipientDoc = await User.findById(resolvedRecipientId).select('name email avatar').lean().exec();
+    if (senderDoc) populated.sender = senderDoc;
+    if (recipientDoc) populated.recipient = recipientDoc;
+
+    res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

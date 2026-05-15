@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/authMiddleware');
+const { protect, authorizeCreatorOrProfile } = require('../middleware/authMiddleware');
 const { checkBan } = require('../middleware/checkBan');
 const { checkFeatureToggle } = require('../middleware/featureToggleMiddleware');
 const {
@@ -37,7 +37,7 @@ const {
 const creatorSubscriptionRoutes = require('../../frontend/CreatorSubscription/routes/subscription.routes');
 
 router.use(protect);
-router.use(authorize('creator'));
+router.use(authorizeCreatorOrProfile());
 router.use('/subscription', creatorSubscriptionRoutes);
 
 router.get('/dashboard', getDashboardData);

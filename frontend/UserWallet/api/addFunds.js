@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAuthenticatedUserId } from './auth';
 import { connectWalletDB } from '../utils/db';
-import WalletModel from '../models/WalletModel';
-import CardModel from '../models/CardModel';
+import { creditWallet, findCardByHash, insertCard } from '../lib/walletPg';
 import { validateTopUpAmount } from '../utils/walletHelpers';
 
 const normalizeCardNumber = (value = '') => String(value).replace(/\D/g, '');
@@ -47,7 +46,7 @@ export async function addFunds(req) {
       }
 
       const cardHash = crypto.createHash('sha256').update(normalizedCard).digest('hex');
-      const existingCard = await CardModel.findOne({ cardHash }).lean();
+      const existingCard = await findCardByHash(cardHash);
 
       if (existingCard && String(existingCard.userId) !== String(userId)) {
         return NextResponse.json(
@@ -57,7 +56,7 @@ export async function addFunds(req) {
       }
 
       if (!existingCard) {
-        await CardModel.create({
+        await insertCard({
           userId,
           cardHash,
           last4: normalizedCard.slice(-4),
@@ -77,31 +76,12 @@ export async function addFunds(req) {
       }
     }
 
-    const transaction = {
-      amount,
-      type: 'credit',
-      status: 'success',
-      createdAt: new Date()
-    };
-
-    const updatedWallet = await WalletModel.findOneAndUpdate(
-      { userId },
-      {
-        $inc: { balance: amount },
-        $push: { transactions: transaction },
-        $set: { updatedAt: new Date() }
-      },
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true
-      }
-    ).lean();
+    const { balance, transaction } = await creditWallet(userId, amount);
 
     return NextResponse.json(
       {
         success: true,
-        balance: updatedWallet.balance,
+        balance,
         transaction
       },
       { status: 200 }

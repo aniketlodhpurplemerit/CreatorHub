@@ -6,6 +6,7 @@ import api from '@/src/lib/api';
 import { Settings, Edit2, Palette, Rocket, Megaphone, ArrowRight, MoreHorizontal, PenTool, Camera, X, Plus, Package, ShoppingBag, Search, CheckCircle2, Heart, MessageSquare, Eye, Trash2, Edit3, Loader2, Upload, Play, Image as ImageIcon, Lock, Video, Radio, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/src/store/useAuthStore';
 
 const formatINR = (value: number) => {
   const amount = Number(value) || 0;
@@ -19,6 +20,7 @@ const formatINR = (value: number) => {
 
 export default function CreatorHomePage() {
   const router = useRouter();
+  const updateUser = useAuthStore((s) => s.updateUser);
   const [activeTab, setActiveTab] = useState('Home');
   const [filterType, setFilterType] = useState('All'); // ['All', 'image', 'video', 'livestream']
   
@@ -76,11 +78,14 @@ export default function CreatorHomePage() {
          formData.append('avatar', avatarFile);
        }
 
-       const res = await api.put('/creator/update-profile', formData, {
-         headers: { 'Content-Type': 'multipart/form-data' }
-       });
+       const res = await api.put('/creator/update-profile', formData);
        
        setCreatorData((prev: any) => ({ ...prev, creator: res.data }));
+       updateUser({
+         name: res.data.name,
+         avatar: res.data.avatar,
+         bio: typeof res.data.bio === 'string' ? res.data.bio : profileForm.bio,
+       });
        toast.success("Profile updated!");
        setBasicsOpen(false);
     } catch (err) {
@@ -138,9 +143,7 @@ export default function CreatorHomePage() {
         formData.append('thumbnail', postThumbnail);
       }
 
-      await api.put(`/creator/posts/${editingPost.id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await api.put(`/creator/posts/${editingPost.id}`, formData);
       toast.success("Post updated!");
       setEditPostModalOpen(false);
       fetchDashboard();

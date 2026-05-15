@@ -28,6 +28,11 @@ export function useBanStatus() {
     let mounted = true;
 
     const bootstrap = async () => {
+      if (typeof window !== 'undefined' && !localStorage.getItem('token')) {
+        if (mounted) setGlobalBan({ isBanned: false, ban: null });
+        return;
+      }
+
       try {
         const { data } = await api.get('/moderation/ban/status');
         if (!mounted) return;

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { newObjectId } = require('../../../backend/utils/objectId');
 const { ADMIN_ROLE } = require('../utils/moderationConstants');
 const { log } = require('../services/adminLog.service');
 
@@ -15,7 +15,7 @@ async function adminOnly(req, res, next) {
     await log(
       req.user._id,
       'admin_route_access',
-      new mongoose.Types.ObjectId(),
+      newObjectId(),
       'route',
       `Accessed ${req.originalUrl}`,
       { method: req.method }

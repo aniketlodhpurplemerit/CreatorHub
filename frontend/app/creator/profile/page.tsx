@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Edit, Share, Diamond, Zap, Link2, Link as LinkIcon, Lock, Heart, MessageSquare, ChevronDown, ArrowLeft, FileText, X, Loader2 } from 'lucide-react';
 import api from '@/src/lib/api';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/src/store/useAuthStore';
 
 export default function CreatorProfilePage() {
   const [activeTab, setActiveTab] = useState('Posts');
@@ -28,6 +29,8 @@ export default function CreatorProfilePage() {
   const [bannerPreview, setBannerPreview] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  const updateUser = useAuthStore((s) => s.updateUser);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -90,16 +93,19 @@ export default function CreatorProfilePage() {
         formData.append('banner', bannerFile);
       }
 
-      const res = await api.put('/creator/update-profile', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const res = await api.put('/creator/update-profile', formData);
 
       setCreator(res.data);
+      updateUser({
+        name: res.data.name,
+        avatar: res.data.avatar,
+        bio: typeof res.data.bio === 'string' ? res.data.bio : bio,
+      });
       toast.success("Profile updated successfully!");
       setEditModalOpen(false);
     } catch (err: any) {
       console.error("Update error:", err);
-      toast.error(err.response?.data?.error || "Failed to update profile");
+      toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to update profile');
     } finally {
       setUpdating(false);
     }

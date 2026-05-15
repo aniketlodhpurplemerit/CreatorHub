@@ -125,9 +125,16 @@ export default function UserMessagesPage() {
         return acc;
       }, {});
 
+      const participantId = (party: any) => {
+        if (!party) return '';
+        if (typeof party === 'string') return party;
+        return String(party._id || party.id || '');
+      };
+
       const chatList = Object.keys(grouped).map((id) => {
           const firstMsg = grouped[id][0];
-          const isSenderMe = firstMsg.sender?._id?.toString() === currentUserId.toString();
+          const senderId = participantId(firstMsg.sender);
+          const isSenderMe = senderId === String(currentUserId);
           const participant = isSenderMe ? firstMsg.recipient : firstMsg.sender;
           return { id, messages: grouped[id], lastMessage: firstMsg, participant };
       });
