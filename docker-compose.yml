@@ -37,6 +37,7 @@ services:
       NEON_DB_URI: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       DATABASE_URL: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3030}
+      CORS_ORIGIN: "*"
     ports:
       # Host 5030 — avoid 4000, 5000, 5020, 8000 used by other Hostinger apps
       - "${API_HOST_PORT:-5030}:${PORT:-5002}"
@@ -62,6 +63,7 @@ services:
       dockerfile: Dockerfile
       target: frontend
       args:
+        # Always bake browser URLs from published host ports (not container PORT).
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5030/api}
         NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:5030}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}

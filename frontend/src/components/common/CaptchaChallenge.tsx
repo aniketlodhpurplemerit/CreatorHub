@@ -61,7 +61,6 @@ export default function CaptchaChallenge({
   const [isEnabled, setIsEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [configErrorMessage, setConfigErrorMessage] = useState('');
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | number | null>(null);
@@ -72,7 +71,13 @@ export default function CaptchaChallenge({
     const fetchCaptchaConfig = async () => {
       setIsLoadingConfig(true);
       setErrorMessage('');
-      setConfigErrorMessage('');
+
+      const disableCaptcha = () => {
+        setIsEnabled(false);
+        setSiteKey('');
+        onRequirementChange?.(false);
+        onTokenChange('');
+      };
 
       try {
         const { data } = await api.get<CaptchaConfigResponse>('/auth/captcha/config');
@@ -81,31 +86,24 @@ export default function CaptchaChallenge({
         }
 
         const enabled = Boolean(data?.enabled);
-        const configured = Boolean(data?.configured);
-        const resolvedSiteKey = String(data?.siteKey || '');
+        const configured = data?.configured !== false;
+        const resolvedSiteKey = String(data?.siteKey || '').trim();
 
-        setIsEnabled(enabled);
-        setSiteKey(resolvedSiteKey);
-        onRequirementChange?.(enabled);
-
-        if (!enabled) {
-          onTokenChange('');
+        // Missing / placeholder Turnstile config => do not render or require captcha.
+        if (!enabled || !configured || !resolvedSiteKey) {
+          disableCaptcha();
           return;
         }
 
-        if (!configured || !resolvedSiteKey) {
-          setErrorMessage('Security challenge is unavailable. Please try again later.');
-        }
+        setIsEnabled(true);
+        setSiteKey(resolvedSiteKey);
+        onRequirementChange?.(true);
       } catch {
         if (!mounted) {
           return;
         }
-
-        setIsEnabled(false);
-        setSiteKey('');
-        setConfigErrorMessage('Unable to load CAPTCHA settings. Please refresh and try again.');
-        onRequirementChange?.(false);
-        onTokenChange('');
+        // Config endpoint unreachable — skip captcha instead of blocking login.
+        disableCaptcha();
       } finally {
         if (mounted) {
           setIsLoadingConfig(false);
@@ -194,19 +192,7 @@ export default function CaptchaChallenge({
     };
   }, [isEnabled, siteKey, isLoadingConfig, refreshNonce, onTokenChange]);
 
-  if (isLoadingConfig) {
-    return null;
-  }
-
-  if (configErrorMessage) {
-    return (
-      <div className={className}>
-        <p className="text-sm text-red-500">{configErrorMessage}</p>
-      </div>
-    );
-  }
-
-  if (!isEnabled) {
+  if (isLoadingConfig || !isEnabled) {
     return null;
   }
 

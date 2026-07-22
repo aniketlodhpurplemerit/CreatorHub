@@ -1,3 +1,12 @@
+// Cloudinary SDK auto-parses CLOUDINARY_URL on import.
+// Ignore placeholders / invalid values so the API can boot without real credentials.
+if (
+  process.env.CLOUDINARY_URL &&
+  !String(process.env.CLOUDINARY_URL).startsWith('cloudinary://')
+) {
+  delete process.env.CLOUDINARY_URL;
+}
+
 const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({

@@ -31,11 +31,40 @@ try {
 const app = express();
 const server = http.createServer(app);
 
+const defaultFrontendOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3030',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3030',
+];
+
+const configuredOrigins = String(process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultFrontendOrigins]));
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Non-browser / same-origin requests have no Origin header.
+    if (!origin || allowedOrigins.includes(origin) || process.env.CORS_ORIGIN === '*') {
+      return callback(null, true);
+    }
+    return callback(null, allowedOrigins.includes(origin));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Captcha-Token'],
+  optionsSuccessStatus: 204,
+};
+
 // Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
@@ -45,8 +74,9 @@ require('./config/socket')(io);
 // Make io accessible to route handlers if needed
 app.set('io', io);
 
-// Middleware
-app.use(cors());
+// Middleware — handle preflight before routes
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

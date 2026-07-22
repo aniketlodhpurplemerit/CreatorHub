@@ -2,6 +2,15 @@ const { AppSetting } = require('../models/AdminData');
 
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+const isConfiguredSecret = (value) => {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  // Treat .env.example placeholders as unset
+  if (/^your[_-]/i.test(v)) return false;
+  if (/placeholder|changeme|example/i.test(v)) return false;
+  return true;
+};
+
 const getClientIp = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
 
@@ -17,13 +26,35 @@ const getClientIp = (req) => {
 };
 
 const getCaptchaRuntimeConfig = async () => {
-  const settings = await AppSetting.findOne().select('botProtectionEnabled');
-  const enabled = Boolean(settings?.botProtectionEnabled);
+  const siteKey = process.env.TURNSTILE_SITE_KEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+  const secretKey = process.env.TURNSTILE_SECRET_KEY || '';
+  const keysConfigured =
+    isConfiguredSecret(siteKey) && isConfiguredSecret(secretKey);
+
+  // No real Turnstile credentials => captcha is fully off (ignore admin toggle).
+  if (!keysConfigured) {
+    return {
+      enabled: false,
+      siteKey: '',
+      secretKey: '',
+      configured: false,
+    };
+  }
+
+  let enabled = false;
+  try {
+    const settings = await AppSetting.findOne().select('botProtectionEnabled');
+    enabled = Boolean(settings?.botProtectionEnabled);
+  } catch {
+    // Settings lookup failed — keep captcha off rather than breaking auth.
+    enabled = false;
+  }
 
   return {
     enabled,
-    siteKey: process.env.TURNSTILE_SITE_KEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '',
-    secretKey: process.env.TURNSTILE_SECRET_KEY || '',
+    siteKey,
+    secretKey,
+    configured: true,
   };
 };
 
@@ -62,32 +93,36 @@ const getCaptchaToken = (req) => {
 
 const getCaptchaConfig = async (req, res) => {
   try {
-    const { enabled, siteKey, secretKey } = await getCaptchaRuntimeConfig();
+    const { enabled, siteKey, configured } = await getCaptchaRuntimeConfig();
 
     return res.status(200).json({
-      enabled,
+      enabled: Boolean(enabled && configured && siteKey),
       provider: 'turnstile',
-      siteKey: enabled ? siteKey : '',
-      configured: enabled ? Boolean(siteKey && secretKey) : true,
+      siteKey: enabled && configured ? siteKey : '',
+      configured,
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to load CAPTCHA configuration' });
+    // Never block login UI on captcha config failures — treat as disabled.
+    return res.status(200).json({
+      enabled: false,
+      provider: 'turnstile',
+      siteKey: '',
+      configured: false,
+    });
   }
 };
 
 const requireCaptchaIfEnabled = (actionLabel = 'this action') => {
   return async (req, res, next) => {
     try {
-      const { enabled, siteKey, secretKey } = await getCaptchaRuntimeConfig();
+      const { enabled, siteKey, secretKey, configured } = await getCaptchaRuntimeConfig();
 
-      if (!enabled) {
+      if (!enabled || !configured) {
         return next();
       }
 
       if (!siteKey || !secretKey) {
-        return res.status(503).json({
-          message: 'Bot protection is enabled, but CAPTCHA is not configured on the server.',
-        });
+        return next();
       }
 
       const captchaToken = getCaptchaToken(req);
@@ -107,7 +142,8 @@ const requireCaptchaIfEnabled = (actionLabel = 'this action') => {
 
       return next();
     } catch (error) {
-      return res.status(500).json({ message: 'Unable to validate CAPTCHA at the moment' });
+      // Fail open when captcha infrastructure errors — auth should still work offline/dev.
+      return next();
     }
   };
 };

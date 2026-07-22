@@ -17,19 +17,30 @@ FROM base AS api-deps
 COPY package.json pnpm-lock.yaml* package-lock.json* pnpm-workspace.yaml .npmrc ./
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
-# Prefer pnpm lock when present; fall back to npm workspaces install
+# Full workspace install: backend loads route modules from frontend/*,
+# and those files resolve deps from /app/frontend (not /app/backend).
 RUN if [ -f pnpm-lock.yaml ]; then \
-      pnpm install --frozen-lockfile --filter backend... ; \
+      pnpm install --frozen-lockfile ; \
     elif [ -f package-lock.json ]; then \
       npm ci ; \
     else \
-      pnpm install --filter backend... ; \
+      pnpm install ; \
     fi
 
 FROM base AS api
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    NODE_PATH=/app/node_modules:/app/backend/node_modules:/app/frontend/node_modules
 COPY --from=api-deps /app/node_modules ./node_modules
-COPY --from=api-deps /app/backend/node_modules ./backend/node_modules
+COPY --from=api-deps /app/backend /tmp/backend-pkg
+COPY --from=api-deps /app/frontend /tmp/frontend-pkg
+RUN mkdir -p backend frontend && \
+    if [ -d /tmp/backend-pkg/node_modules ]; then \
+      cp -a /tmp/backend-pkg/node_modules backend/node_modules; \
+    fi && \
+    if [ -d /tmp/frontend-pkg/node_modules ]; then \
+      cp -a /tmp/frontend-pkg/node_modules frontend/node_modules; \
+    fi && \
+    rm -rf /tmp/backend-pkg /tmp/frontend-pkg
 COPY package.json pnpm-workspace.yaml .npmrc load-root-env.mjs ./
 COPY backend backend/
 # Backend requires modular routes from sibling frontend packages
@@ -67,8 +78,12 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     DOCKER_BUILD=1 \
     NEXT_TELEMETRY_DISABLED=1
 COPY --from=frontend-deps /app/node_modules ./node_modules
-COPY --from=frontend-deps /app/frontend/node_modules ./frontend/node_modules
-COPY --from=frontend-deps /app/backend/node_modules ./backend/node_modules
+COPY --from=frontend-deps /app/frontend /tmp/frontend-pkg
+RUN mkdir -p frontend && \
+    if [ -d /tmp/frontend-pkg/node_modules ]; then \
+      cp -a /tmp/frontend-pkg/node_modules frontend/node_modules; \
+    fi && \
+    rm -rf /tmp/frontend-pkg
 COPY package.json pnpm-workspace.yaml .npmrc load-root-env.mjs ./
 COPY frontend frontend/
 # Wallet / moderation models import backend pool helpers at build/runtime
@@ -76,7 +91,7 @@ COPY backend/db backend/db
 COPY backend/utils backend/utils
 COPY backend/package.json backend/package.json
 WORKDIR /app/frontend
-RUN if command -v pnpm >/dev/null 2>&1 && [ -f /app/pnpm-lock.yaml ]; then \
+RUN if [ -f /app/pnpm-lock.yaml ]; then \
       pnpm run build ; \
     else \
       npm run build ; \
