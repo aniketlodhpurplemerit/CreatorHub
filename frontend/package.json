@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^4.6.2",

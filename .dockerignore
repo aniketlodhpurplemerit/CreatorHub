@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+.git
+.cursor
+.next
+**/.next
+dist
+out
+coverage
+.env
+.env.local
+*.md
+!frontend/README.md
+backend/package-lock.json
+frontend/package-lock.json

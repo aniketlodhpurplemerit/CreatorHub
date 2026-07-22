@@ -1,0 +1,30 @@
+{
+  "name": "creatorhub",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/ws.mjs dev",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "node scripts/ws.mjs build",
+    "start": "node scripts/ws.mjs start",
+    "lint": "node scripts/ws.mjs lint",
+    "seed": "npm run seed -w backend",
+    "seed:admin": "npm run seed:admin -w backend",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "compose:up": "docker compose up -d --build",
+    "compose:down": "docker compose down",
+    "compose:logs": "docker compose logs -f api frontend",
+    "clean": "node scripts/ws.mjs clean && rm -rf node_modules"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}

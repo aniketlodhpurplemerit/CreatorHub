@@ -1,5 +1,11 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const dotenv = require('dotenv');
+
+// Monorepo root `.env` / `.env.local`, then package-level overrides.
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '.env.local'), override: true });
+dotenv.config({ path: path.join(__dirname, '.env'), override: true });
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');

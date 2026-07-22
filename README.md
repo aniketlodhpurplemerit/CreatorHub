@@ -237,12 +237,12 @@ flowchart LR
 
 ## 7) Environment Variables
 
-Create env files for frontend and backend before running.
+Create a root `.env` from `.env.example` (preferred). Package-level `backend/.env` and `frontend/.env.local` still work as overrides.
 
-### Backend (`backend/.env`)
+### Backend (root or `backend/.env`)
 
 Required:
-- `MONGODB_URI`
+- `NEON_DB_URI` (or `DATABASE_URL`) — PostgreSQL / Neon
 - `JWT_SECRET`
 
 Common/Recommended:
@@ -260,10 +260,12 @@ Common/Recommended:
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 
-### Frontend (`frontend/.env.local`)
+### Frontend (root or `frontend/.env.local`)
 
 Required:
 - `NEXT_PUBLIC_API_URL` (example: `http://localhost:5002/api`)
+- `NEON_DB_URI` (wallet API routes)
+- `JWT_SECRET`
 
 Optional/Common:
 - `NEXT_PUBLIC_SOCKET_URL` (example: `http://localhost:5002`)
@@ -274,69 +276,100 @@ Additional module-specific values exist in domain modules (moderation/admin-wall
 - `BCRYPT_SALT_ROUNDS`
 - custom collection names for moderation/support modules
 
+### Docker host ports (Hostinger)
+
+Do not reuse ports already taken by other stacks. CreatorHub defaults:
+
+- Frontend `3030`, API `5030`, Postgres `5434`
+
 ## 8) Local Development Setup
 
-## Prerequisites
+### Prerequisites
 - Node.js 20+
-- npm 10+
-- MongoDB instance
+- npm 10+ **or** pnpm 9+ (both workspaces are supported)
+- PostgreSQL (local Docker via `docker compose`, or Neon)
 
-## Install Dependencies
+### Install Dependencies
 
-From repository root:
+From repository root (hoisted monorepo `node_modules`):
 
 ```bash
-cd backend
+cp .env.example .env
+# edit .env — set JWT_SECRET, NEON_DB_URI / Postgres, Cloudinary, SMTP, etc.
+
+# with npm
 npm install
 
-cd ../frontend
-npm install
+# or with pnpm
+pnpm install
 ```
 
-## Run Development Servers
-
-Terminal 1:
+Start Postgres only (published on host **5434** to avoid clashing with other stacks):
 
 ```bash
-cd backend
-npm run dev
+npm run db:up
+# or: pnpm db:up
 ```
 
-Terminal 2:
+### Run Development Servers
+
+Both apps in parallel from root:
 
 ```bash
-cd frontend
 npm run dev
+# or: pnpm dev
 ```
 
-Default URLs:
+Or individually:
+
+```bash
+npm run dev:backend
+npm run dev:frontend
+```
+
+Default local URLs:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:5002`
 
-Note: frontend API default fallback in code points to port `5000`. Set `NEXT_PUBLIC_API_URL=http://localhost:5002/api` to match backend default.
+Set `NEXT_PUBLIC_API_URL=http://localhost:5002/api` (already in root `.env.example`).
 
-## 9) Build and Production Run
+## 9) Build, Production, and Docker (Hostinger)
 
-### Backend
-
-```bash
-cd backend
-npm run start
-```
-
-### Frontend
+### Local production (no Docker)
 
 ```bash
-cd frontend
 npm run build
 npm run start
+# or: pnpm build && pnpm start
 ```
+
+### Docker Compose (recommended on Hostinger)
+
+Ports are chosen to avoid conflicts with existing containers on the host
+(`3000–3002`, `3010`, `3020–3021`, `4000`, `5000`, `5020`, `8000`):
+
+| Service | Host port | Container |
+|---------|-----------|-----------|
+| Frontend | **3030** | 3000 |
+| API | **5030** | 5002 |
+| Postgres | **5434** | 5432 |
+
+```bash
+cp .env.example .env
+# set strong POSTGRES_PASSWORD, JWT_SECRET, Cloudinary, SMTP, FRONTEND_URL, etc.
+# For public URLs behind your domain, set NEXT_PUBLIC_API_URL / FRONTEND_URL accordingly.
+
+docker compose up -d --build
+# or: npm run compose:up
+```
+
+Containers: `creatorhub-frontend`, `creatorhub-api`, `creatorhub-postgres`.
 
 ## 10) Seed and Bootstrapping
 
-Backend scripts:
-- `npm run seed`
-- `npm run seed:admin`
+From repo root:
+- `npm run seed` / `pnpm seed`
+- `npm run seed:admin` / `pnpm seed:admin`
 
 Use these to bootstrap initial datasets/admin records where required.
 

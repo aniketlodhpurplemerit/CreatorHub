@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "private": true,
   "description": "Backend for Creator Module",
   "main": "server.js",
   "scripts": {
@@ -8,7 +9,8 @@
     "dev": "nodemon server.js",
     "seed": "node utils/seeder.js",
     "seed:admin": "node utils/seedAdmin.js",
-    "migrate:subscriptions": "node ../frontend/CreatorSubscription/migrations/backfillSubscriptions.js"
+    "migrate:subscriptions": "node ../frontend/CreatorSubscription/migrations/backfillSubscriptions.js",
+    "clean": "rm -rf node_modules"
   },
   "keywords": [],
   "author": "",

@@ -11,6 +11,13 @@ lerna-debug.log*
 node_modules/
 jspm_packages/
 web_modules/
+.pnpm-store/
+
+# Lockfiles: keep root lockfiles only (npm + pnpm both supported)
+backend/package-lock.json
+frontend/package-lock.json
+backend/pnpm-lock.yaml
+frontend/pnpm-lock.yaml
 
 # OS/Editor Files
 .DS_Store
@@ -44,6 +51,9 @@ out/
 .env.development
 .env.test
 .env.production
+!.env.example
+!backend/env.example
+!frontend/env.example
 
 # Testing
 coverage/
