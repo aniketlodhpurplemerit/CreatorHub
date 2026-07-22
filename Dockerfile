@@ -69,10 +69,12 @@ RUN if [ -f pnpm-lock.yaml ]; then \
     fi
 
 FROM base AS frontend-build
-ARG NEXT_PUBLIC_API_URL=http://localhost:5030/api
+ARG API_URL=http://api:5002
+ARG NEXT_PUBLIC_API_URL=/api
 ARG NEXT_PUBLIC_SOCKET_URL=http://localhost:5030
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+ENV API_URL=$API_URL \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL \
     NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY \
     DOCKER_BUILD=1 \
@@ -101,7 +103,8 @@ FROM base AS frontend
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    API_URL=http://api:5002
 COPY --from=frontend-build /app/frontend/public ./frontend/public
 COPY --from=frontend-build /app/frontend/.next/standalone ./
 COPY --from=frontend-build /app/frontend/.next/static ./frontend/.next/static

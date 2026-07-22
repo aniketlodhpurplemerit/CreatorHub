@@ -263,12 +263,13 @@ Common/Recommended:
 ### Frontend (root or `frontend/.env.local`)
 
 Required:
-- `NEXT_PUBLIC_API_URL` (example: `http://localhost:5002/api`)
+- `NEXT_PUBLIC_API_URL` — Docker/Hostinger: `/api` (same-origin rewrite). Local direct: `http://localhost:5002/api`
+- `API_URL` — rewrite target. Docker: `http://api:5002`. Local: `http://localhost:5002`
 - `NEON_DB_URI` (wallet API routes)
 - `JWT_SECRET`
 
 Optional/Common:
-- `NEXT_PUBLIC_SOCKET_URL` (example: `http://localhost:5002`)
+- `NEXT_PUBLIC_SOCKET_URL` (browser → published API host, e.g. `http://YOUR_PUBLIC_IP:5030`)
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
 
 Additional module-specific values exist in domain modules (moderation/admin-wallet/support), for example:
@@ -278,9 +279,10 @@ Additional module-specific values exist in domain modules (moderation/admin-wall
 
 ### Docker host ports (Hostinger)
 
-Do not reuse ports already taken by other stacks. CreatorHub defaults:
+Do not reuse ports already taken by other stacks (link-me uses 3020/3021/4000). CreatorHub defaults:
 
-- Frontend `3030`, API `5030`, Postgres `5434`
+- Frontend `3030`, API `5030` (sockets), Postgres `5434`
+- Browser API calls use same-origin `/api` (no CORS), like link-me
 
 ## 8) Local Development Setup
 
@@ -331,9 +333,19 @@ Default local URLs:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:5002`
 
-Set `NEXT_PUBLIC_API_URL=http://localhost:5002/api` (already in root `.env.example`).
+For local non-Docker API calls, set `NEXT_PUBLIC_API_URL=http://localhost:5002/api` and `API_URL=http://localhost:5002`.
 
 ## 9) Build, Production, and Docker (Hostinger)
+
+Same pattern as link-me: browser calls **same-origin `/api`**, Next.js rewrites to the `api` container on the Docker network. Sockets still use the published API host port.
+
+```mermaid
+flowchart LR
+  Browser -->|"/api same origin"| FE[creatorhub-frontend:3030]
+  FE -->|"API_URL http://api:5002"| BE[creatorhub-api]
+  Browser -->|"sockets :5030"| BE
+  BE --> PG[postgres]
+```
 
 ### Local production (no Docker)
 
@@ -345,25 +357,45 @@ npm run start
 
 ### Docker Compose (recommended on Hostinger)
 
-Ports are chosen to avoid conflicts with existing containers on the host
-(`3000–3002`, `3010`, `3020–3021`, `4000`, `5000`, `5020`, `8000`):
+Ports avoid conflicts with link-me (`3020`/`3021`/`4000`) and other stacks:
 
 | Service | Host port | Container |
 |---------|-----------|-----------|
 | Frontend | **3030** | 3000 |
-| API | **5030** | 5002 |
+| API (sockets / direct) | **5030** | 5002 |
 | Postgres | **5434** | 5432 |
 
-```bash
-cp .env.example .env
-# set strong POSTGRES_PASSWORD, JWT_SECRET, Cloudinary, SMTP, FRONTEND_URL, etc.
-# For public URLs behind your domain, set NEXT_PUBLIC_API_URL / FRONTEND_URL accordingly.
+On the VPS:
 
-docker compose up -d --build
-# or: npm run compose:up
+```bash
+cd CreatorHub
+cp .env.example .env
 ```
 
-Containers: `creatorhub-frontend`, `creatorhub-api`, `creatorhub-postgres`.
+Edit `.env` (replace `YOUR_PUBLIC_IP` with the VPS IP or domain):
+
+```env
+API_URL=http://api:5002
+NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_SOCKET_URL=http://YOUR_PUBLIC_IP:5030
+FRONTEND_URL=http://YOUR_PUBLIC_IP:3030
+POSTGRES_PASSWORD=some_strong_password
+JWT_SECRET=<openssl rand -hex 32>
+```
+
+Then:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f api frontend
+```
+
+Open `http://YOUR_PUBLIC_IP:3030`.
+
+Containers: `creatorhub-frontend`, `creatorhub-api`, `creatorhub-postgres` on network `creatorhub`.
+
+If you change `NEXT_PUBLIC_*` or `API_URL`, rebuild (`--build`) — those values are baked into the frontend image.
 
 ## 10) Seed and Bootstrapping
 
@@ -534,8 +566,11 @@ Current scripts are focused on lint/build and runtime. For robust quality gates,
 ## 19) Troubleshooting
 
 ### Frontend cannot reach backend
-- Verify backend is running.
-- Check `NEXT_PUBLIC_API_URL` points to backend port (default backend here is `5002`).
+- Verify backend is running (`docker compose ps` / logs).
+- Docker/Hostinger: `NEXT_PUBLIC_API_URL` should be `/api` and `API_URL=http://api:5002`.
+- Local non-Docker: `NEXT_PUBLIC_API_URL=http://localhost:5002/api`.
+- Sockets need `NEXT_PUBLIC_SOCKET_URL=http://YOUR_PUBLIC_IP:5030` (not localhost on a remote VPS).
+- After changing `NEXT_PUBLIC_*` or `API_URL`, rebuild the frontend image.
 
 ### Auth seems unstable on client
 - Confirm JWT secret consistency in backend env.

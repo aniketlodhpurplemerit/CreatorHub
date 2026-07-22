@@ -21,6 +21,9 @@ function loadRepoRootEnv() {
 
 loadRepoRootEnv();
 
+// Docker: API_URL=http://api:5002 (compose service). Local: http://localhost:5002
+const API_URL = (process.env.API_URL || "http://localhost:5002").replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
   // Monorepo: file tracing / turbopack resolve from repo root
   outputFileTracingRoot: repoRoot,
@@ -30,6 +33,16 @@ const nextConfig: NextConfig = {
   // Slimmer image for Docker (see Dockerfile `frontend` target)
   ...(process.env.DOCKER_BUILD === "1" ? { output: "standalone" as const } : {}),
   serverExternalPackages: ["pg"],
+  // link-me style: browser calls same-origin /api → proxy to Express.
+  // App Router filesystem routes (e.g. /api/wallet/*) take precedence over rewrites.
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${API_URL}/api/:path*`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

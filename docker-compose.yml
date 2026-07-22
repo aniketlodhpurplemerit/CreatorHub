@@ -21,6 +21,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - creatorhub
 
   api:
     build:
@@ -37,9 +39,9 @@ services:
       NEON_DB_URI: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       DATABASE_URL: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3030}
-      CORS_ORIGIN: "*"
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     ports:
-      # Host 5030 — avoid 4000, 5000, 5020, 8000 used by other Hostinger apps
+      # Host 5030 — sockets / direct API; avoid 4000, 5000, 5020, 8000 (other Hostinger apps)
       - "${API_HOST_PORT:-5030}:${PORT:-5002}"
     depends_on:
       postgres:
@@ -56,6 +58,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
+    networks:
+      - creatorhub
 
   frontend:
     build:
@@ -63,8 +67,9 @@ services:
       dockerfile: Dockerfile
       target: frontend
       args:
-        # Always bake browser URLs from published host ports (not container PORT).
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5030/api}
+        # Same-origin /api (Next rewrite → API_URL). Sockets still need a public host URL.
+        API_URL: ${API_URL:-http://api:5002}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
         NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:5030}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     container_name: creatorhub-frontend
@@ -74,10 +79,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      # Runtime rewrite target (standalone server reads this for next.config if needed;
+      # primary bake is at build time via ARG/ENV above).
+      API_URL: ${API_URL:-http://api:5002}
       NEON_DB_URI: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       DATABASE_URL: postgresql://${POSTGRES_USER:-creatorhub}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-creatorhub}
       JWT_SECRET: ${JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5030/api}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
       NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:5030}
     ports:
       # Host 3030 — avoid 3000-3002, 3010, 3020-3021 used by other Hostinger apps
@@ -87,6 +95,13 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    networks:
+      - creatorhub
 
 volumes:
   creatorhub_postgres_data:
+
+networks:
+  creatorhub:
+    name: creatorhub
+    driver: bridge
